@@ -117,3 +117,4 @@ obj-$(CONFIG_TOUCHSCREEN_NVT_F7B)	+= lct_tp_info.o
 obj-$(CONFIG_TOUCHSCREEN_NVT_F7B)	+= lct_tp_work.o
 obj-$(CONFIG_TOUCHSCREEN_NVT_F7B)	+= lct_tp_gesture.o
 obj-$(CONFIG_TOUCHSCREEN_NVT_F7B)	+= lct_tp_grip_area.o
+obj-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += nt36672c/
