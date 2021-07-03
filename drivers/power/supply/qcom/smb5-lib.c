@@ -5373,7 +5373,11 @@ static int smblib_handle_usb_current(struct smb_charger *chg,
 	}
 #endif
 	if (chg->real_charger_type == POWER_SUPPLY_TYPE_USB_FLOAT) {
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+		if (usb_current == -ETIMEDOUT) {
+#else
 		if (usb_current == -ETIMEDOUT || is_float) {
+#endif
 			/* we do not use USB500mA for float charger */
 #if 0
 			if ((chg->float_cfg & FLOAT_OPTIONS_MASK)
@@ -5391,7 +5395,6 @@ static int smblib_handle_usb_current(struct smb_charger *chg,
 				return rc;
 			}
 #endif
-
 			if (chg->connector_type ==
 					POWER_SUPPLY_CONNECTOR_TYPEC) {
 #ifdef CONFIG_MACH_XIAOMI_VIOLET
