@@ -1,7 +1,7 @@
 /*
 ** =============================================================================
 ** Copyright (c) 2016  Texas Instruments Inc.
-** Copyright (C) 2021 XiaoMi, Inc.
+** Copyright (C) 2019 XiaoMi, Inc.
 **
 ** This program is free software; you can redistribute it and/or modify it under
 ** the terms of the GNU General Public License as published by the Free Software
@@ -57,8 +57,6 @@
 
 #define LOW_TEMPERATURE_GAIN 6
 #define LOW_TEMPERATURE_COUNTER 12
-static char pICN[] = {0x00, 0x00, 0x2f, 0x2c};
-static char pICNDelay[] = {0x00, 0x00, 0x70, 0x80};
 
 static int tas2563_change_book_page(struct tas2563_priv *pTAS2563,
 	int book, int page)
@@ -118,9 +116,9 @@ static int tas2563_dev_read(struct tas2563_priv *pTAS2563,
 		dev_err(pTAS2563->dev, "%s, ERROR, L=%d, E=%d\n",
 			__func__, __LINE__, nResult);
 	else
-		dev_dbg(pTAS2563->dev, "%s: BOOK:PAGE:REG %u:%u:%u,%x\n", __func__,
+		dev_dbg(pTAS2563->dev, "%s: BOOK:PAGE:REG %u:%u:%u\n", __func__,
 			TAS2563_BOOK_ID(reg), TAS2563_PAGE_ID(reg),
-			TAS2563_PAGE_REG(reg), *pValue);
+			TAS2563_PAGE_REG(reg));
 
 end:
 	mutex_unlock(&pTAS2563->dev_lock);
@@ -265,7 +263,7 @@ static const struct reg_default tas2563_reg_defaults[] = {
 	{ TAS2563_TDMConfigurationReg3, 0x10 },
 	{ TAS2563_InterruptMaskReg0, 0xfc },
 	{ TAS2563_InterruptMaskReg1, 0xb1 },
-	{ TAS2563_InterruptConfiguration, 0x1d },
+	{ TAS2563_InterruptConfiguration, 0x05 },
 	{ TAS2563_MiscIRQ, 0x81 },
 	{ TAS2563_ClockConfiguration, 0x0c },
 
@@ -331,7 +329,6 @@ static void irq_work_routine(struct work_struct *work)
 	unsigned int nDevInt1Status = 0, nDevInt2Status = 0;
 	int nCounter = 2;
 	int nResult = 0;
-	int irqreg;
 
 	dev_info(pTAS2563->dev, "%s\n", __func__);
 #ifdef CONFIG_TAS2563_CODEC
@@ -348,24 +345,24 @@ static void irq_work_routine(struct work_struct *work)
 		goto end;
 	}
 
-	nResult = tas2563_dev_write(pTAS2563, TAS2563_InterruptMaskReg0,
+	nResult = regmap_write(pTAS2563->regmap, TAS2563_InterruptMaskReg0,
 				TAS2563_InterruptMaskReg0_Disable);
-	nResult = tas2563_dev_write(pTAS2563, TAS2563_InterruptMaskReg1,
+	nResult = regmap_write(pTAS2563->regmap, TAS2563_InterruptMaskReg1,
 				TAS2563_InterruptMaskReg1_Disable);
 
 	if (nResult < 0)
 		goto reload;
 
-	nResult = tas2563_dev_read(pTAS2563, TAS2563_LatchedInterruptReg0, &nDevInt1Status);
+	nResult = regmap_read(pTAS2563->regmap, TAS2563_LatchedInterruptReg0, &nDevInt1Status);
 	if (nResult >= 0)
-		nResult = tas2563_dev_read(pTAS2563, TAS2563_LatchedInterruptReg1, &nDevInt2Status);
+		nResult = regmap_read(pTAS2563->regmap, TAS2563_LatchedInterruptReg1, &nDevInt2Status);
 	else
 		goto reload;
 
-	dev_info(pTAS2563->dev, "IRQ status : 0x%x, 0x%x\n",
+	dev_dbg(pTAS2563->dev, "IRQ status : 0x%x, 0x%x\n",
 			nDevInt1Status, nDevInt2Status);
 
-	if (((nDevInt1Status & 0x7) != 0) || ((nDevInt2Status & 0x0f) != 0)) {
+	if (((nDevInt1Status & 0x3) != 0) || ((nDevInt2Status & 0x0f) != 0)) {
 		/* in case of INT_OC, INT_OT, INT_OVLT, INT_UVLT, INT_BO */
 
 		if (nDevInt1Status & TAS2563_LatchedInterruptReg0_OCEFlagSticky_Interrupt) {
@@ -403,7 +400,7 @@ static void irq_work_routine(struct work_struct *work)
 		nCounter = 2;
 
 		while (nCounter > 0) {
-			nResult = tas2563_dev_read(pTAS2563, TAS2563_PowerControl, &nDevInt1Status);
+			nResult = regmap_read(pTAS2563->regmap, TAS2563_PowerControl, &nDevInt1Status);
 			if (nResult < 0)
 				goto reload;
 
@@ -411,42 +408,12 @@ static void irq_work_routine(struct work_struct *work)
 				!= TAS2563_PowerControl_OperationalMode10_Shutdown)
 				break;
 
-			pTAS2563->read(pTAS2563, TAS2563_LatchedInterruptReg0, &irqreg);
-			dev_info(pTAS2563->dev, "IRQ reg is: %s %d, %d\n", __func__, irqreg, __LINE__);
-
-			nResult = pTAS2563->update_bits(pTAS2563, TAS2563_PowerControl,
-				TAS2563_PowerControl_OperationalMode10_Mask |
-				TAS2563_PowerControl_ISNSPower_Mask |
-				TAS2563_PowerControl_VSNSPower_Mask,
-				TAS2563_PowerControl_OperationalMode10_Active |
-				TAS2563_PowerControl_VSNSPower_Active |
-				TAS2563_PowerControl_ISNSPower_Active);
-			if (nResult < 0)
-				goto reload;
-
-			pTAS2563->read(pTAS2563, TAS2563_LatchedInterruptReg0, &irqreg);
-			dev_info(pTAS2563->dev, "IRQ reg is: %s, %d, %d\n", __func__, irqreg, __LINE__);
-
-			dev_info(pTAS2563->dev, "set ICN to -90dB\n");
-			nResult = pTAS2563->bulk_write(pTAS2563, TAS2563_ICN_REG, pICN, 4);
-			if(nResult < 0)
-				goto reload;
-
-			pTAS2563->read(pTAS2563, TAS2563_LatchedInterruptReg0, &irqreg);
-			dev_info(pTAS2563->dev, "IRQ reg is: %d, %d\n", irqreg, __LINE__);
-
-			dev_info(pTAS2563->dev, "set ICN delay\n");
-			nResult = pTAS2563->bulk_write(pTAS2563, TAS2563_ICN_DELAY, pICNDelay, 4);
-
-			pTAS2563->read(pTAS2563, TAS2563_LatchedInterruptReg0, &irqreg);
-			dev_info(pTAS2563->dev, "IRQ reg is: %d, %d\n", irqreg, __LINE__);
-
 			nCounter--;
 			if (nCounter > 0) {
-				/* in case check power status just after power on TAS2563 */
+				/* in case check pow status just after power on TAS2563 */
 				dev_dbg(pTAS2563->dev, "PowSts B: 0x%x, check again after 10ms\n",
 					nDevInt1Status);
-				msleep(20);
+				msleep(10);
 			}
 		}
 
@@ -462,11 +429,11 @@ static void irq_work_routine(struct work_struct *work)
 		pTAS2563->mnErrCode &= ~ERROR_CLASSD_PWR;
 	}
 
-	nResult = tas2563_dev_write(pTAS2563, TAS2563_InterruptMaskReg0, 0xf8);
+	nResult = regmap_write(pTAS2563->regmap, TAS2563_InterruptMaskReg0, 0xfc);
 	if (nResult < 0)
 		goto reload;
 
-	nResult = tas2563_dev_write(pTAS2563, TAS2563_InterruptMaskReg1, 0xb1);
+	nResult = regmap_write(pTAS2563->regmap, TAS2563_InterruptMaskReg1, 0xb1);
 	if (nResult < 0)
 		goto reload;
 
@@ -478,11 +445,11 @@ reload:
 	//tas2563_LoadConfig(pTAS2563);
 	tas2563_set_program(pTAS2563, pTAS2563->mnCurrentProgram, pTAS2563->mnCurrentConfiguration);
 
-end:
 	if (nResult >= 0) {
 		tas2563_enableIRQ(pTAS2563, true);
 	}
-
+	
+end:
 #ifdef CONFIG_TAS2563_CODEC
 	mutex_unlock(&pTAS2563->codec_lock);
 #endif
@@ -711,8 +678,8 @@ static int tas2563_i2c_probe(struct i2c_client *pClient,
 		dev_dbg(pTAS2563->dev, "irq = %d\n", pTAS2563->mnIRQ);
 		INIT_DELAYED_WORK(&pTAS2563->irq_work, irq_work_routine);
 		nResult = request_threaded_irq(pTAS2563->mnIRQ, tas2563_irq_handler,
-					NULL, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
-					pClient->name, pTAS2563);
+					NULL, IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
+				pClient->name, pTAS2563);
 		if (nResult < 0) {
 			dev_err(pTAS2563->dev,
 				"request_irq failed, %d\n", nResult);
@@ -735,22 +702,13 @@ static int tas2563_i2c_probe(struct i2c_client *pClient,
 
 #ifdef CONFIG_TAS2563_CODEC
 	mutex_init(&pTAS2563->codec_lock);
-	nResult = tas2563_register_codec(pTAS2563);
-	if (nResult < 0) {
-		dev_err(pTAS2563->dev,
-			"register codec failed, %d\n", nResult);
-		goto err;
-	}
+	tas2563_register_codec(pTAS2563);
+	dev_info(pTAS2563->dev, "register codec");
 #endif
 
 #ifdef CONFIG_TAS2563_MISC
 	mutex_init(&pTAS2563->file_lock);
-	nResult = tas2563_register_misc(pTAS2563);
-	if (nResult < 0) {
-		dev_err(pTAS2563->dev,
-			"register codec failed, %d\n", nResult);
-		goto err;
-	}
+	tas2563_register_misc(pTAS2563);
 #endif
 
 #ifdef ENABLE_TILOAD
