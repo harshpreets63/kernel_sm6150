@@ -6,13 +6,15 @@ objdir="${kernel_dir}/out"
 anykernel="${kernel_dir}/anykernel"
 builddir="${kernel_dir}/build"
 ZIMAGE=$kernel_dir/out/arch/arm64/boot/Image.gz-dtb
-kernel_name="Litten-Violet"
+kernel_name="PeruNoob_OOS"
 zip_name="$kernel_name-$(date +"%d%m%Y-%H%M").zip"
 TC_DIR=$HOME/tc/proton-clang
 export CONFIG_FILE="violet_defconfig"
 export ARCH="arm64"
 export KBUILD_BUILD_HOST=HarshPreet
 export KBUILD_BUILD_USER=HarshPreet
+rm -rf $anykernel
+git clone -q https://github.com/raghavt20/AnyKernel3 anykernel
 
 export PATH="$TC_DIR/bin:$PATH"
 
@@ -61,17 +63,13 @@ completion()
 	COMPILED_DTBO=arch/arm64/boot/dtbo.img
 	if [[ -f ${COMPILED_IMAGE} && ${COMPILED_DTBO} ]]; then
 
-	git clone -q https://github.com/raghavt20/AnyKernel3 $anykernel
-
-		mv -f $ZIMAGE ${COMPILED_DTBO} $anykernel
+		mv -f $ZIMAGE ${COMPILED_DTBO} $anykernel/
 
         cd $anykernel
         find . -name "*.zip" -type f
         find . -name "*.zip" -type f -delete
         zip -r AnyKernel.zip *
         mv AnyKernel.zip $zip_name
-        mv $anykernel/$zip_name $HOME/$zip_name
-	rm -rf $anykernel
         END=$(date +"%s")
         DIFF=$(($END - $START))
 	#curl --upload-file $HOME/$zip_name http://transfer.sh/$zip_name; echo
