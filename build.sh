@@ -3,7 +3,7 @@
 kernel_dir="${PWD}"
 CCACHE=$(command -v ccache)
 objdir="${kernel_dir}/out"
-anykernel=$HOME/anykernel
+anykernel="${kernel_dir}/anykernel"
 builddir="${kernel_dir}/build"
 ZIMAGE=$kernel_dir/out/arch/arm64/boot/Image.gz-dtb
 kernel_name="Litten-Violet"
@@ -11,8 +11,8 @@ zip_name="$kernel_name-$(date +"%d%m%Y-%H%M").zip"
 TC_DIR=$HOME/tc/proton-clang
 export CONFIG_FILE="violet_defconfig"
 export ARCH="arm64"
-export KBUILD_BUILD_HOST=raghavt20
-export KBUILD_BUILD_USER=raghav
+export KBUILD_BUILD_HOST=HarshPreet
+export KBUILD_BUILD_USER=HarshPreet
 
 export PATH="$TC_DIR/bin:$PATH"
 
@@ -74,7 +74,7 @@ completion()
 	rm -rf $anykernel
         END=$(date +"%s")
         DIFF=$(($END - $START))
-	curl --upload-file $HOME/$zip_name http://transfer.sh/$zip_name; echo
+	#curl --upload-file $HOME/$zip_name http://transfer.sh/$zip_name; echo
 		echo -e ${LGR} "############################################"
 		echo -e ${LGR} "############# OkThisIsEpic!  ##############"
 		echo -e ${LGR} "############################################${NC}"
